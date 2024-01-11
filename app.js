@@ -169,6 +169,7 @@ app.post("/users", async (request, response) => {
       mobileNumber: request.body.mobileNumber,
       password: hashedpwd,
     });
+    response.locals.csrfToken = req.csrfToken();
     request.login(user, (error) => {
       if (error) {
         console.log(error);
