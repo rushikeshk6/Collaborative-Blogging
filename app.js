@@ -1,8 +1,8 @@
 /* eslint-disable no-undef */
 /* eslint-disable no-unused-vars */
 const express = require("express");
+const jwt = require("jsonwebtoken");
 const app = express();
-var csrf = require("csurf");
 var cookieParser = require("cookie-parser");
 const { User } = require("./models");
 const bodyParser = require("body-parser");
@@ -15,23 +15,19 @@ const bcrypt = require("bcrypt");
 const cors = require("cors");
 app.use(cors());
 app.use(cookieParser());
-app.use(csrf({ cookie: { key: 'csrfToken', httpOnly: true } }));
 app.use(bodyParser.json());
 app.use(express.urlencoded({ extended: false }));
-app.use(session({
-  secret: "my key super secret",
-  cookie: {
-    maxAge: 24 * 60 * 60 * 1000,
-  },
-}));
+app.use(
+  session({
+    secret: "my key super secret",
+    cookie: {
+      maxAge: 24 * 60 * 60 * 1000,
+    },
+  })
+);
 app.use(passport.initialize());
 app.use(passport.session());
 app.use(flash());
-
-app.use((req, res, next) => {
-  res.locals.csrfToken = req.csrfToken();
-  next();
-});
 
 const saltRounds = 10;
 
@@ -78,15 +74,6 @@ passport.deserializeUser((id, done) => {
     });
 });
 
-app.use((req, res, next) => {
-  res.locals.csrfToken = req.csrfToken();
-  console.log("Cookies:", req.cookies); // Log cookies
-  next();
-});
-app.use(cors({
-  origin: 'http://localhost:5173/signup',
-  credentials: true,
-}));
 function validateUser(req, res, next) {
   // validate user (user email, user pass )
   User.findOne({ where: { email: req.body.email } })
@@ -123,7 +110,6 @@ app.get("/", async function (request, response) {
   if (request.accepts("html")) {
     response.render("index", {
       user,
-      csrfToken: request.csrfToken(),
     });
   } else {
     response.json({});
@@ -131,16 +117,22 @@ app.get("/", async function (request, response) {
 });
 
 app.get("/signUp", (request, response) => {
-  response.render("signup", {
-    csrfToken: request.csrfToken(),
-  });
+  response.render("signup");
 });
 
 app.get("/login", (request, response) => {
-  response.render("login", {
-    csrfToken: request.csrfToken(),
-  });
+  response.render("login");
 });
+
+function generateToken(user) {
+  let sanitizedUser = user.toJSON();
+  delete sanitizedUser["password"];
+  
+  return jwt.sign(
+    sanitizedUser,
+    process.env.JWT_SECRET || "your_jwt_secret"
+  );
+}
 
 app.post("/users", async (request, response) => {
   let isAdmin = false;
@@ -169,13 +161,15 @@ app.post("/users", async (request, response) => {
       mobileNumber: request.body.mobileNumber,
       password: hashedpwd,
     });
-    response.locals.csrfToken = req.csrfToken();
     request.login(user, (error) => {
       if (error) {
         console.log(error);
       }
+      const token = generateToken(user);
+
       request.flash("success", "You have signed up successfully.");
-      response.redirect("/login");
+      response.json({ user: sanatisedUser, token });
+      console.log({user: sanatisedUser + ' HELLO ' + token});
     });
   } catch (error) {
     console.log(error);
@@ -191,12 +185,10 @@ app.post(
   }),
   (request, response) => {
     const userId = request.user.id;
+    const user = request.user;
+    const token = generateToken(user);
     request.flash("success", "You have logged in successfully.");
-    if (AdminOfSport) {
-      response.redirect("/admin/createSport/" + userId);
-    } else {
-      response.redirect("/sportList");
-    }
+    response.json({userId: userId,token});
   }
 );
 
