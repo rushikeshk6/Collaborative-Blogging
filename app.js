@@ -140,7 +140,7 @@ app.post("/users", async (request, response) => {
     isAdmin = true;
   }
 
-  if (request.body.password.length == 0) {
+  if (!request.body.password) {
     request.flash("error", "Password can not be empty!");
   }
   const hashedpwd = await bcrypt.hash(request.body.password, saltRounds);
