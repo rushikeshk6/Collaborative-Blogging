@@ -269,12 +269,10 @@ app.get("/blogs", async (req, res) => {
       blogDescription: blog.blogDescription,
       location: blog.location,
       date: blog.date,
-      userID: blog.userID,
       blogThumbnail: blog.blogThumbnail
     }));
-
+    res.json(blogsWithImages);
     res.render('blogs', { blogs: blogsWithImages });
-    return res.json(blogsWithImages);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Internal Server Error" });
