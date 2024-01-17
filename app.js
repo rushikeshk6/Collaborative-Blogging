@@ -140,6 +140,9 @@ app.post("/users", async (request, response) => {
     isAdmin = true;
   }
 
+  if (!request.body.password) {
+    return res.status(400).json({ error: 'Password is required' });
+  }
   const hashedpwd = await bcrypt.hash(request.body.password, saltRounds);
   console.log(hashedpwd);
   try {
