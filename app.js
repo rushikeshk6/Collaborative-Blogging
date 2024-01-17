@@ -4,7 +4,7 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const app = express();
 var cookieParser = require("cookie-parser");
-const { User } = require("./models");
+const { User, Blog } = require("./models");
 const bodyParser = require("body-parser");
 const path = require("path");
 const passport = require("passport");
@@ -13,6 +13,7 @@ const LocalStrategy = require("passport-local");
 const flash = require("connect-flash");
 const bcrypt = require("bcrypt");
 const cors = require("cors");
+const multer = require("multer");
 app.use(cors());
 app.use(cookieParser());
 app.use(bodyParser.json());
@@ -74,7 +75,7 @@ passport.deserializeUser((id, done) => {
     });
 });
 
-function validateUser(req, res, next) {
+function validateUser(req, res, done, next) {
   // validate user (user email, user pass )
   User.findOne({ where: { email: req.body.email } })
     .then(async (user) => {
@@ -127,30 +128,18 @@ app.get("/login", (request, response) => {
 function generateToken(user) {
   let sanitizedUser = user.toJSON();
   delete sanitizedUser["password"];
-  
-  return jwt.sign(
-    sanitizedUser,
-    process.env.JWT_SECRET || "your_jwt_secret"
-  );
+
+  return jwt.sign(sanitizedUser, process.env.JWT_SECRET || "your_jwt_secret");
 }
+
+//create user api endpoint
 
 app.post("/users", async (request, response) => {
   let isAdmin = false;
   if (request.body.isAdmin != true) {
     isAdmin = true;
   }
-  if (request.body.firstName.length == 0) {
-    request.flash("error", "First Name can not be empty!");
-    return response.redirect("/signup");
-  }
-  if (request.body.email.length == 0) {
-    request.flash("error", "Email address can not be empty!");
-    return response.redirect("/signup");
-  }
-  if (request.body.password.length == 0) {
-    request.flash("error", "Password can not be empty!");
-    return response.redirect("/signup");
-  }
+
   const hashedpwd = await bcrypt.hash(request.body.password, saltRounds);
   console.log(hashedpwd);
   try {
@@ -161,20 +150,17 @@ app.post("/users", async (request, response) => {
       mobileNumber: request.body.mobileNumber,
       password: hashedpwd,
     });
-    request.login(user, (error) => {
-      if (error) {
-        console.log(error);
-      }
-      const token = generateToken(user);
 
-      request.flash("success", "You have signed up successfully.");
-      response.json({ user: sanatisedUser, token });
-      console.log({user: sanatisedUser + ' HELLO ' + token});
-    });
+    const token = generateToken(user);
+
+    response.json({ user: user, token });
+    console.log({ user: user + " HELLO " + token });
   } catch (error) {
     console.log(error);
   }
 });
+
+//user login api endpoint
 
 app.post(
   "/session",
@@ -184,13 +170,19 @@ app.post(
     failureFlash: true,
   }),
   (request, response) => {
-    const userId = request.user.id;
+    const userID = request.user.id;
     const user = request.user;
     const token = generateToken(user);
-    request.flash("success", "You have logged in successfully.");
-    response.json({userId: userId,token});
+    response.cookie("token", token, {
+      maxAge: 24 * 60 * 60 * 1000, // Set the cookie expiration time (example: 24 hours)
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production", // Set to true if using HTTPS in production
+    });
+    response.json({ userID: userID, token });
   }
 );
+
+//user signout api endpoint
 
 app.get("/signout", (request, response, next) => {
   request.logout((error) => {
@@ -200,6 +192,90 @@ app.get("/signout", (request, response, next) => {
     request.flash("success", "You have successfully signed out.");
     response.redirect("/");
   });
+});
+
+//create blog api
+
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
+
+app.post(
+  "/publisher/createBlog/:userID",
+  upload.single("blogThumbnail"),
+  async (req, res) => {
+    try {
+      // Extract user ID from the JWT token in the cookies
+      const token = req.cookies.token;
+      if (!token) {
+        return res.status(401).json({ error: "Token not provided" });
+      }
+
+      const decodedToken = jwt.verify(
+        token,
+        process.env.JWT_SECRET || "your_jwt_secret"
+      );
+      const userIDFromToken = decodedToken.id;
+
+      // Check if the authenticated user matches the requested userID
+      console.log(userIDFromToken + "rank" + req.params.userID);
+      console.log(typeof userIDFromToken);
+      console.log(typeof req.params.userID);
+      if (userIDFromToken.toString() !== req.params.userID.toString()) {
+        return res
+          .status(403)
+          .json({ error: "Access denied. Invalid user ID." });
+      }
+
+      console.log("------------------------------------");
+      console.log(req.body);
+
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      // Access the file buffer
+      const thumbnailBuffer = req.file.buffer;
+      const blogThumbnailBase64 = thumbnailBuffer.toString('base64');
+
+      // Save the file to the database (assuming you have a model named Blog with a column blogThumbnail of type bytea)
+      const createBlog = await Blog.create({
+        blogTitle: req.body.blogTitle,
+        blogThumbnail: blogThumbnailBase64, // Save the buffer directly to the database
+        blogDescription: req.body.blogDescription,
+        location: req.body.location,
+        date: req.body.date,
+        userID: userIDFromToken,
+      });
+      console.log(thumbnailBuffer);
+      return res.json(createBlog);
+    } catch (err) {
+      console.log(err);
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+  }
+);
+
+app.get("/blogs", async (req, res) => {
+  try {
+    // Retrieve all blogs from the database
+    const allBlogs = await Blog.findAll();
+
+    // Form a response object with the required data
+    const blogsWithImages = allBlogs.map((blog) => ({
+      blogTitle: blog.blogTitle,
+      blogDescription: blog.blogDescription,
+      location: blog.location,
+      date: blog.date,
+      userID: blog.userID,
+      blogThumbnail: blog.blogThumbnail
+    }));
+
+    res.render('blogs', { blogs: blogsWithImages });
+    return res.json(blogsWithImages);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
 });
 
 module.exports = app;

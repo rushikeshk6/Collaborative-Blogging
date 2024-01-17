@@ -1,0 +1,35 @@
+<!-- blogs.ejs -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>All Blogs</title>
+</head>
+<body>
+  <h1>All Blogs</h1>
+
+  <% if (blogs.length > 0) { %>
+    <ul>
+      <% blogs.forEach(blog => { %>
+        <li>
+          <h2><%= blog.blogTitle %></h2>
+          <p><%= blog.blogDescription %></p>
+          <p>Location: <%= blog.location %></p>
+          <p>Date: <%= blog.date %></p>
+
+          <% if (blog.blogThumbnail) { %>
+            <img src="data:jpg/jpeg/png;base64, <%= blog.blogThumbnail %>" alt="Blog Thumbnail">
+          <% } else { %>
+            <p>No thumbnail available</p>
+          <% } %>
+        </li>
+      <% }) %>
+    </ul>
+  <% } else { %>
+    <p>No blogs available.</p>
+  <% } %>
+
+</body>
+</html>
