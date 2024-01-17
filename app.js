@@ -141,7 +141,7 @@ app.post("/users", async (request, response) => {
   }
 
   if (!request.body.password) {
-    request.flash("error", "Password can not be empty!");
+    return res.status(400).json({ error: 'Password is required' });
   }
   const hashedpwd = await bcrypt.hash(request.body.password, saltRounds);
   console.log(hashedpwd);
