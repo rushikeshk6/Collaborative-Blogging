@@ -18,7 +18,7 @@
           <p><%= blog.blogDescription %></p>
           <p>Location: <%= blog.location %></p>
           <p>Date: <%= blog.date %></p>
-
+          <p><%= blog.likes %></p>
           <% if (blog.blogThumbnail) { %>
             <img src="data:jpg/jpeg/png;base64, <%= blog.blogThumbnail %>" alt="Blog Thumbnail">
           <% } else { %>

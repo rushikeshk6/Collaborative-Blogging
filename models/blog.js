@@ -1,7 +1,5 @@
-'use strict';
-const {
-  Model
-} = require('sequelize');
+"use strict";
+const { Model } = require("sequelize");
 module.exports = (sequelize, DataTypes) => {
   class Blog extends Model {
     /**
@@ -11,20 +9,62 @@ module.exports = (sequelize, DataTypes) => {
      */
     static associate(models) {
       // define association here
-      Blog.belongsTo(models.User,{
-        foreignKey: 'userID',
-      })
+      Blog.belongsTo(models.User, {
+        foreignKey: "userID",
+      });
+    }
+
+    static async remove({ blogID, userID }) {
+      return this.destroy({
+        where: {
+          id: blogID,
+          userID,
+        },
+      });
+    }
+
+    static async likeBlog(blogID, userID) {
+      const blog = await this.findByPk(blogID);
+
+      if (!blog) {
+        throw new Error("Blog not found");
+      }
+
+      // Check if the user has already liked the blog post
+      if (blog.likes && blog.likedBy.includes(userID)) {
+        throw new Error("Blog already liked by the user");
+      }
+
+      // Update the likes count and the array of user IDs who liked the blog
+      blog.likes = blog.likes ? blog.likes + 1 : 1;
+      blog.likedBy = blog.likedBy ? [...blog.likedBy, userID] : [userID];
+
+      // Save the updated blog post
+      await blog.save();
+
+      return blog;
     }
   }
-  Blog.init({
-    blogTitle: DataTypes.STRING,
-    blogThumbnail: DataTypes.TEXT,
-    blogDescription: DataTypes.STRING,
-    location: DataTypes.STRING,
-    date: DataTypes.STRING
-  }, {
-    sequelize,
-    modelName: 'Blog',
-  });
+  Blog.init(
+    {
+      blogTitle: DataTypes.STRING,
+      blogThumbnail: DataTypes.TEXT,
+      blogDescription: DataTypes.STRING,
+      location: DataTypes.STRING,
+      date: DataTypes.STRING,
+      likes: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+      },
+      likedBy: {
+        type: DataTypes.ARRAY(DataTypes.INTEGER),
+        defaultValue: [],
+      },
+    },
+    {
+      sequelize,
+      modelName: "Blog",
+    }
+  );
   return Blog;
 };

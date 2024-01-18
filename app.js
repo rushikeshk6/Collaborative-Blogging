@@ -20,7 +20,9 @@ app.use(bodyParser.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(
   session({
-    secret: "my key super secret",
+    secret: 'my key super secret',
+    resave: false, // Set to false to avoid session being saved on every request
+    saveUninitialized: false, // Set to false to avoid saving uninitialized sessions
     cookie: {
       maxAge: 24 * 60 * 60 * 1000,
     },
@@ -141,7 +143,7 @@ app.post("/users", async (request, response) => {
   }
 
   if (!request.body.password) {
-    return response.status(400).json({ error: 'Password is required' });
+    return response.status(400).json({ error: "Password is required" });
   }
   const hashedpwd = await bcrypt.hash(request.body.password, saltRounds);
   console.log(hashedpwd);
@@ -238,7 +240,7 @@ app.post(
 
       // Access the file buffer
       const thumbnailBuffer = req.file.buffer;
-      const blogThumbnailBase64 = thumbnailBuffer.toString('base64');
+      const blogThumbnailBase64 = thumbnailBuffer.toString("base64");
 
       // Save the file to the database (assuming you have a model named Blog with a column blogThumbnail of type bytea)
       const createBlog = await Blog.create({
@@ -269,13 +271,115 @@ app.get("/blogs", async (req, res) => {
       blogDescription: blog.blogDescription,
       location: blog.location,
       date: blog.date,
-      blogThumbnail: blog.blogThumbnail
+      blogThumbnail: blog.blogThumbnail,
+      likes: blog.likes
     }));
-    res.json(blogsWithImages);
-    res.render('blogs', { blogs: blogsWithImages });
+    //res.json(blogsWithImages);
+    res.render("blogs", { blogs: blogsWithImages });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+app.get("/blogs/:id", async (req, res) => {
+  try {
+    // Retrieve all blogs from the database
+    const blogID = req.params.id;
+    console.log(blogID);
+    const perticularBlog = await Blog.findByPk(blogID);
+    res.json(perticularBlog);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+app.patch("/publisher/blogs/:blogID/:userID", async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) {
+      return res.status(401).json({ error: "Token not provided" });
+    }
+
+    const decodedToken = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "your_jwt_secret"
+    );
+    const userIDFromToken = decodedToken.id;
+
+    if (userIDFromToken.toString() !== req.params.userID.toString()) {
+      return res.status(403).json({ error: "Access denied. Invalid user ID." });
+    }
+    const userID = userIDFromToken;
+    const blogID = req.params.blogID;
+    console.log(blogID + " user " + userID);
+    const blog = await Blog.findByPk(blogID);
+    if (blog && blog.userID == userID) {
+      const updateBlog = await blog.update({
+        blogTitle: req.body.blogTitle,
+        blogDescription: req.body.blogDescription,
+        location: req.body.location,
+      });
+      res.json(updateBlog);
+    } else {
+      res.status(404).json({ error: "Blog not found or unauthorized" });
+    }
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+app.delete("/publisher/blogs/:blogID/:userID", async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) {
+      return res.status(401).json({ error: "Token not provided" });
+    }
+
+    const decodedToken = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "your_jwt_secret"
+    );
+    const userIDFromToken = decodedToken.id;
+
+    if (userIDFromToken.toString() !== req.params.userID.toString()) {
+      return res.status(403).json({ error: "Access denied. Invalid user ID." });
+    }
+    const userID = userIDFromToken;
+    const blogID = req.params.blogID;
+    console.log(blogID + " user " + userID);
+    await Blog.remove({ blogID, userID });
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+app.post('/blog/:blogID/:userID', async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) {
+      return res.status(401).json({ error: 'Token not provided' });
+    }
+
+    const decodedToken = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret');
+    const userIDFromToken = decodedToken.id;
+
+    
+
+    const userID = userIDFromToken;
+    const blogID = req.params.blogID;
+    console.log("userID: "+userID+"    "+"blogID: "+blogID);
+    // Like the blog
+    const blog = await Blog.likeBlog(blogID, userID);
+
+    res.json({ success: true, likes: blog.likes });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
