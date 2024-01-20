@@ -12,6 +12,15 @@ module.exports = (sequelize, DataTypes) => {
       Blog.belongsTo(models.User, {
         foreignKey: "userID",
       });
+      Blog.hasMany(models.sharedBlog,{
+        foreignKey: 'blogID',
+      })
+      Blog.hasMany(models.Comment,{
+        foreignKey: 'blogID',
+      })
+      Blog.hasMany(models.SavedBlog,{
+        foreignKey: 'blogID',
+      })
     }
 
     static async remove({ blogID, userID }) {

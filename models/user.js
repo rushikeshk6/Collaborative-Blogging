@@ -14,14 +14,29 @@ module.exports = (sequelize, DataTypes) => {
       User.hasMany(models.Blog,{
         foreignKey: 'userID',
       })
+      User.hasMany(models.Comment,{
+        foreignKey: 'userID',
+      })
+      User.hasMany(models.SavedBlog,{
+        foreignKey: 'userID',
+      })
     }
   }
   User.init({
     firstName: DataTypes.STRING,
     lastName: DataTypes.STRING,
-    email: DataTypes.STRING,
+    email: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+    },
     mobileNumber: DataTypes.STRING,
-    password: DataTypes.STRING
+    password: DataTypes.STRING,
+    username: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+    },
   }, {
     sequelize,
     modelName: 'User',

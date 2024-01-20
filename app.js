@@ -4,7 +4,7 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const app = express();
 var cookieParser = require("cookie-parser");
-const { User, Blog } = require("./models");
+const { User, Blog, sharedBlog, Comment, SavedBlog } = require("./models");
 const bodyParser = require("body-parser");
 const path = require("path");
 const passport = require("passport");
@@ -145,15 +145,29 @@ app.post("/users", async (request, response) => {
   if (!request.body.password) {
     return response.status(400).json({ error: "Password is required" });
   }
+
   const hashedpwd = await bcrypt.hash(request.body.password, saltRounds);
-  console.log(hashedpwd);
+
   try {
+    // Check if the provided username is already taken
+    const existingUser = await User.findOne({
+      where: {
+        username: request.body.username,
+      },
+    });
+
+    if (existingUser) {
+      return response.status(400).json({ error: "Username is not available" });
+    }
+
+    // If username is unique, create the user
     const user = await User.create({
       firstName: request.body.firstName,
       lastName: request.body.lastName,
       email: request.body.email,
       mobileNumber: request.body.mobileNumber,
       password: hashedpwd,
+      username: request.body.username, 
     });
 
     const token = generateToken(user);
@@ -162,8 +176,10 @@ app.post("/users", async (request, response) => {
     console.log({ user: user + " HELLO " + token });
   } catch (error) {
     console.log(error);
+    response.status(500).json({ error: "Internal Server Error" });
   }
 });
+
 
 //user login api endpoint
 
@@ -358,7 +374,7 @@ app.delete("/publisher/blogs/:blogID/:userID", async (req, res) => {
   }
 });
 
-app.post('/blog/:blogID/:userID', async (req, res) => {
+app.post('/blog/like/:blogID', async (req, res) => {
   try {
     const token = req.cookies.token;
     if (!token) {
@@ -380,6 +396,205 @@ app.post('/blog/:blogID/:userID', async (req, res) => {
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+app.post('/blog/share/:blogID', async (req, res) => {
+  try {
+    // Generate a unique shareable link
+    const blogID = req.params.blogID;
+    const shareableLink = generateShareableLink(blogID);
+
+    // Store the link in the PostgreSQL database using Sequelize
+    const sharedLink = await sharedBlog.create({ blogID: blogID, shareBlogLink: shareableLink });
+
+    res.json({ shareableLink });
+  } catch (error) {
+    console.error('Error generating shareable link:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+function generateUniqueID() {
+  return Math.random().toString(36).substring(7);
+}
+
+function generateShareableLink(blogID) {
+  // Modify this function based on your requirements
+  // Example: Using a base URL and appending blog ID and a unique identifier
+  const baseLink = 'http://localhost:3689/share/';
+  const uniqueID = generateUniqueID();
+  return `${baseLink}${blogID}/${uniqueID}`;
+}
+
+
+
+
+app.get('/share/:blogID/:uniqueID', async (req, res) => {
+  try {
+    const blogID = req.params.blogID;
+    const uniqueID = req.params.uniqueID;
+
+    // Validate the uniqueID (you might have a mechanism to check its validity)
+    const isValidUniqueID = validateUniqueID(blogID, uniqueID);
+
+    if (!isValidUniqueID) {
+      return res.status(403).json({ error: 'Invalid uniqueID' });
+    }
+
+    // Retrieve the blog based on the blogID
+    const blog = await Blog.findByPk(blogID);
+
+    if (!blog) {
+      return res.status(404).json({ error: 'Blog not found' });
+    }
+
+    // Here, you can render a page or send the blog data as JSON, depending on your needs
+    res.json({ blog });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+async function validateUniqueID(blogID, uniqueID) {
+  try {
+    // Check if the combination of blogID and uniqueID exists in the sharedBlog table
+    const sharedLink = await sharedBlog.findOne({
+      where: {
+        blogID: blogID,
+        shareBlogLink: uniqueID,
+      },
+    });
+
+    // If the combination is found, return true; otherwise, return false
+    return !!sharedLink;
+  } catch (error) {
+    console.error('Error validating uniqueID:', error);
+    return false;
+  }
+}
+
+app.get("/blog/comments/:blogID", async (req, res) => {
+  try {
+    const blogID = req.params.blogID;
+
+    // Retrieve all comments for the specified blog ID
+    const comments = await Comment.findAll({
+      where: { blogID },
+      attributes: ["id", "text", "createdAt"],
+      include: [
+        {
+          model: User,
+          attributes: ["id", "firstName", "lastName"],
+        },
+      ],
+    });
+
+    res.json({ comments });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// Post a new comment on a specific blog
+app.post("/blog/comments/:blogID", async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) {
+      return res.status(401).json({ error: "Token not provided" });
+    }
+
+    const decodedToken = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "your_jwt_secret"
+    );
+    const userIDFromToken = decodedToken.id;
+
+    const blogID = req.params.blogID;
+    const { text } = req.body;
+
+    // Create a new comment
+    const comment = await Comment.create({
+      text,
+      userID: userIDFromToken,
+      blogID,
+    });
+
+    res.json({ comment });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+app.post("/user/saveblog/:blogID", async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) {
+      return res.status(401).json({ error: "Token not provided" });
+    }
+
+    const decodedToken = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "your_jwt_secret"
+    );
+    const userIDFromToken = decodedToken.id;
+
+    const blogID = req.params.blogID;
+
+    // Check if the blog is already saved by the user
+    const existingSavedBlog = await SavedBlog.findOne({
+      where: { userID: userIDFromToken, blogID },
+    });
+
+    if (existingSavedBlog) {
+      return res.status(400).json({ error: "Blog already saved" });
+    }
+
+    // Save the blog to the user's session
+    const savedBlog = await SavedBlog.create({
+      userID: userIDFromToken,
+      blogID,
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// Retrieve saved blogs for the user
+app.get("/user/savedblogs", async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) {
+      return res.status(401).json({ error: "Token not provided" });
+    }
+
+    const decodedToken = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "your_jwt_secret"
+    );
+    const userIDFromToken = decodedToken.id;
+
+    // Retrieve all blogs saved by the user
+    const savedBlogs = await SavedBlog.findAll({
+      where: { userID: userIDFromToken },
+      include: [
+        {
+          model: Blog,
+          attributes: ["id", "blogTitle", "blogDescription", "location", "date"],
+        },
+      ],
+    });
+
+    res.json({ savedBlogs });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
