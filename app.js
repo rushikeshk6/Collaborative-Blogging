@@ -14,13 +14,17 @@ const flash = require("connect-flash");
 const bcrypt = require("bcrypt");
 const cors = require("cors");
 const multer = require("multer");
-app.use(cors());
+app.use(
+  cors({
+    credentials: true,
+  })
+);
 app.use(cookieParser());
 app.use(bodyParser.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(
   session({
-    secret: 'my key super secret',
+    secret: "my key super secret",
     resave: false, // Set to false to avoid session being saved on every request
     saveUninitialized: false, // Set to false to avoid saving uninitialized sessions
     cookie: {
@@ -85,18 +89,21 @@ function validateUser(req, res, done, next) {
       if (result) {
         res.cookie(`em`, user.email, {
           maxAge: 500 * 60 * 60 * 1000,
-          secure: true,
+          secure: process.env.NODE_ENV === "production", // Set to true if using HTTPS in production
           httpOnly: true,
+          sameSite: "None",
         });
         res.cookie(`ps`, user.password, {
           maxAge: 500 * 60 * 60 * 1000,
-          secure: true,
+          secure: process.env.NODE_ENV === "production", // Set to true if using HTTPS in production
           httpOnly: true,
+          sameSite: "None",
         });
         res.cookie(`fn`, user.firstName, {
           maxAge: 500 * 60 * 60 * 1000,
-          secure: true,
+          secure: process.env.NODE_ENV === "production", // Set to true if using HTTPS in production
           httpOnly: true,
+          sameSite: "None",
         });
         next();
       } else {
@@ -167,7 +174,7 @@ app.post("/users", async (request, response) => {
       email: request.body.email,
       mobileNumber: request.body.mobileNumber,
       password: hashedpwd,
-      username: request.body.username, 
+      username: request.body.username,
     });
 
     const token = generateToken(user);
@@ -179,7 +186,6 @@ app.post("/users", async (request, response) => {
     response.status(500).json({ error: "Internal Server Error" });
   }
 });
-
 
 //user login api endpoint
 
@@ -197,7 +203,8 @@ app.post(
     response.cookie("token", token, {
       maxAge: 24 * 60 * 60 * 1000, // Set the cookie expiration time (example: 24 hours)
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // Set to true if using HTTPS in production
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "None",
     });
     response.json({ userID: userID, token });
   }
@@ -288,7 +295,7 @@ app.get("/blogs", async (req, res) => {
       location: blog.location,
       date: blog.date,
       blogThumbnail: blog.blogThumbnail,
-      likes: blog.likes
+      likes: blog.likes,
     }));
     //res.json(blogsWithImages);
     res.render("blogs", { blogs: blogsWithImages });
@@ -374,44 +381,48 @@ app.delete("/publisher/blogs/:blogID/:userID", async (req, res) => {
   }
 });
 
-app.post('/blog/like/:blogID', async (req, res) => {
+app.post("/blog/like/:blogID", async (req, res) => {
   try {
     const token = req.cookies.token;
     if (!token) {
-      return res.status(401).json({ error: 'Token not provided' });
+      return res.status(401).json({ error: "Token not provided" });
     }
 
-    const decodedToken = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret');
+    const decodedToken = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "your_jwt_secret"
+    );
     const userIDFromToken = decodedToken.id;
-
-    
 
     const userID = userIDFromToken;
     const blogID = req.params.blogID;
-    console.log("userID: "+userID+"    "+"blogID: "+blogID);
+    console.log("userID: " + userID + "    " + "blogID: " + blogID);
     // Like the blog
     const blog = await Blog.likeBlog(blogID, userID);
 
     res.json({ success: true, likes: blog.likes });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: 'Internal Server Error' });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
-app.post('/blog/share/:blogID', async (req, res) => {
+app.post("/blog/share/:blogID", async (req, res) => {
   try {
     // Generate a unique shareable link
     const blogID = req.params.blogID;
     const shareableLink = generateShareableLink(blogID);
 
     // Store the link in the PostgreSQL database using Sequelize
-    const sharedLink = await sharedBlog.create({ blogID: blogID, shareBlogLink: shareableLink });
+    const sharedLink = await sharedBlog.create({
+      blogID: blogID,
+      shareBlogLink: shareableLink,
+    });
 
     res.json({ shareableLink });
   } catch (error) {
-    console.error('Error generating shareable link:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error("Error generating shareable link:", error);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
@@ -422,15 +433,12 @@ function generateUniqueID() {
 function generateShareableLink(blogID) {
   // Modify this function based on your requirements
   // Example: Using a base URL and appending blog ID and a unique identifier
-  const baseLink = 'http://localhost:3689/share/';
+  const baseLink = "http://localhost:3689/share/";
   const uniqueID = generateUniqueID();
   return `${baseLink}${blogID}/${uniqueID}`;
 }
 
-
-
-
-app.get('/share/:blogID/:uniqueID', async (req, res) => {
+app.get("/share/:blogID/:uniqueID", async (req, res) => {
   try {
     const blogID = req.params.blogID;
     const uniqueID = req.params.uniqueID;
@@ -439,21 +447,21 @@ app.get('/share/:blogID/:uniqueID', async (req, res) => {
     const isValidUniqueID = validateUniqueID(blogID, uniqueID);
 
     if (!isValidUniqueID) {
-      return res.status(403).json({ error: 'Invalid uniqueID' });
+      return res.status(403).json({ error: "Invalid uniqueID" });
     }
 
     // Retrieve the blog based on the blogID
     const blog = await Blog.findByPk(blogID);
 
     if (!blog) {
-      return res.status(404).json({ error: 'Blog not found' });
+      return res.status(404).json({ error: "Blog not found" });
     }
 
     // Here, you can render a page or send the blog data as JSON, depending on your needs
     res.json({ blog });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
@@ -470,7 +478,7 @@ async function validateUniqueID(blogID, uniqueID) {
     // If the combination is found, return true; otherwise, return false
     return !!sharedLink;
   } catch (error) {
-    console.error('Error validating uniqueID:', error);
+    console.error("Error validating uniqueID:", error);
     return false;
   }
 }
@@ -586,7 +594,13 @@ app.get("/user/savedblogs", async (req, res) => {
       include: [
         {
           model: Blog,
-          attributes: ["id", "blogTitle", "blogDescription", "location", "date"],
+          attributes: [
+            "id",
+            "blogTitle",
+            "blogDescription",
+            "location",
+            "date",
+          ],
         },
       ],
     });
