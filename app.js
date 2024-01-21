@@ -85,21 +85,15 @@ function validateUser(req, res, done, next) {
       if (result) {
         res.cookie(`em`, user.email, {
           maxAge: 500 * 60 * 60 * 1000,
-          secure: process.env.NODE_ENV === "production", // Set to true if using HTTPS in production
-          httpOnly: true,
-          sameSite: "None",
+          secure: true, // Set to true if using HTTPS in production
         });
         res.cookie(`ps`, user.password, {
           maxAge: 500 * 60 * 60 * 1000,
-          secure: process.env.NODE_ENV === "production", // Set to true if using HTTPS in production
-          httpOnly: true,
-          sameSite: "None",
+          secure: true,
         });
         res.cookie(`fn`, user.firstName, {
           maxAge: 500 * 60 * 60 * 1000,
-          secure: process.env.NODE_ENV === "production", // Set to true if using HTTPS in production
-          httpOnly: true,
-          sameSite: "None",
+          secure: true,
         });
         next();
       } else {
@@ -199,9 +193,7 @@ app.post(
     const token = generateToken(user);
     response.cookie("token", token, {
       maxAge: 24 * 60 * 60 * 1000, // Set the cookie expiration time (example: 24 hours)
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "None",
+      secure: true
     });
     response.json({ userID: userID, token });
   }
