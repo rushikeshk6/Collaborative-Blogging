@@ -20,7 +20,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(cookieParser());
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: false }));
 app.use(
   session({
