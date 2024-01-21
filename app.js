@@ -198,6 +198,7 @@ app.post(
   }),
   (request, response) => {
     const userID = request.user.id;
+    console.log(userID);
     const user = request.user;
     const token = generateToken(user);
     response.cookie("token", token, {
@@ -248,7 +249,8 @@ app.post(
       console.log(userIDFromToken + "rank" + req.params.userID);
       console.log(typeof userIDFromToken);
       console.log(typeof req.params.userID);
-      if (userIDFromToken.toString() !== req.params.userID.toString()) {
+      console.log(req.user.id);
+      if (req.user.id.toString() !== req.params.userID.toString()) {
         return res
           .status(403)
           .json({ error: "Access denied. Invalid user ID." });
@@ -272,7 +274,7 @@ app.post(
         blogDescription: req.body.blogDescription,
         location: req.body.location,
         date: req.body.date,
-        userID: userIDFromToken,
+        userID: req.user.id,
       });
       console.log(thumbnailBuffer);
       return res.json(createBlog);
@@ -298,6 +300,8 @@ app.get("/blogs", async (req, res) => {
       likes: blog.likes,
     }));
     //res.json(blogsWithImages);
+    console.log("userID");
+    console.log(req.user.id);
     res.render("blogs", { blogs: blogsWithImages });
   } catch (err) {
     console.error(err);
@@ -331,10 +335,10 @@ app.patch("/publisher/blogs/:blogID/:userID", async (req, res) => {
     );
     const userIDFromToken = decodedToken.id;
 
-    if (userIDFromToken.toString() !== req.params.userID.toString()) {
+    if (req.user.id.toString() !== req.params.userID.toString()) {
       return res.status(403).json({ error: "Access denied. Invalid user ID." });
     }
-    const userID = userIDFromToken;
+    const userID = req.user.id;
     const blogID = req.params.blogID;
     console.log(blogID + " user " + userID);
     const blog = await Blog.findByPk(blogID);
@@ -367,10 +371,10 @@ app.delete("/publisher/blogs/:blogID/:userID", async (req, res) => {
     );
     const userIDFromToken = decodedToken.id;
 
-    if (userIDFromToken.toString() !== req.params.userID.toString()) {
+    if (req.user.id.toString() !== req.params.userID.toString()) {
       return res.status(403).json({ error: "Access denied. Invalid user ID." });
     }
-    const userID = userIDFromToken;
+    const userID = req.user.id;
     const blogID = req.params.blogID;
     console.log(blogID + " user " + userID);
     await Blog.remove({ blogID, userID });
@@ -394,7 +398,7 @@ app.post("/blog/like/:blogID", async (req, res) => {
     );
     const userIDFromToken = decodedToken.id;
 
-    const userID = userIDFromToken;
+    const userID = req.user.id;
     const blogID = req.params.blogID;
     console.log("userID: " + userID + "    " + "blogID: " + blogID);
     // Like the blog
@@ -526,7 +530,7 @@ app.post("/blog/comments/:blogID", async (req, res) => {
     // Create a new comment
     const comment = await Comment.create({
       text,
-      userID: userIDFromToken,
+      userID: req.user.id,
       blogID,
     });
 
@@ -554,7 +558,7 @@ app.post("/user/saveblog/:blogID", async (req, res) => {
 
     // Check if the blog is already saved by the user
     const existingSavedBlog = await SavedBlog.findOne({
-      where: { userID: userIDFromToken, blogID },
+      where: { userID: req.user.id, blogID },
     });
 
     if (existingSavedBlog) {
@@ -563,7 +567,7 @@ app.post("/user/saveblog/:blogID", async (req, res) => {
 
     // Save the blog to the user's session
     const savedBlog = await SavedBlog.create({
-      userID: userIDFromToken,
+      userID: req.user.id,
       blogID,
     });
 
@@ -590,7 +594,7 @@ app.get("/user/savedblogs", async (req, res) => {
 
     // Retrieve all blogs saved by the user
     const savedBlogs = await SavedBlog.findAll({
-      where: { userID: userIDFromToken },
+      where: { userID: req.user.id },
       include: [
         {
           model: Blog,
