@@ -14,7 +14,10 @@ const flash = require("connect-flash");
 const bcrypt = require("bcrypt");
 const cors = require("cors");
 const multer = require("multer");
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true,
+}));
 app.use(cookieParser());
 app.use(bodyParser.json());
 app.use(express.urlencoded({ extended: false }));
