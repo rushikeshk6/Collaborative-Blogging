@@ -198,10 +198,15 @@ app.post(
   }),
   (request, response) => {
     const userID = request.user.id;
+    const firstName = request.user.firstName;
+    const lastName = request.user.lastName;
+    const email = request.user.email;
+    const mobileNumber = request.user.mobileNumber;
+    const username = request.user.username;
     console.log(userID);
     const user = request.user;
     const token = generateToken(user);
-    response.json({ userID: userID, token });
+    response.json({ userID, firstName, lastName, email, mobileNumber,username, token });
   }
 );
 
