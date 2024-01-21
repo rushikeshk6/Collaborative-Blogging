@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const app = express();
 var cookieParser = require("cookie-parser");
 const { User, Blog, sharedBlog, Comment, SavedBlog } = require("./models");
+const connectEnsureLogin = require("connect-ensure-login");
 const bodyParser = require("body-parser");
 const path = require("path");
 const passport = require("passport");
