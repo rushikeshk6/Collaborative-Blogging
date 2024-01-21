@@ -224,6 +224,7 @@ const upload = multer({ storage: storage });
 
 app.post(
   "/publisher/createBlog",
+  connectEnsureLogin.ensureLoggedIn(),
   upload.single("blogThumbnail"),
   async (req, res) => {
     try {
